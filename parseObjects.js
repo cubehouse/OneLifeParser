@@ -7,6 +7,14 @@ const dir = `${__dirname}/../OneLifeData/`;
 const readFile = util.promisify(fs.readFile);
 const fileExists = util.promisify(fs.exists);
 
+function ParseSoundString(sound) {
+    return sound.split("#").map(x=> {
+        const soundData = sscanf(x, "%d:%f", "id", "volume");
+        if (soundData.id == -1) return null;
+        return soundData;
+    }).filter(x=>x!==null);
+}
+
 function ReadObjectFile(id) {
     return fileExists(`${dir}objects/${id}.txt`).then(exists => {
         if (!exists) return Promise.resolve(null);
@@ -63,31 +71,10 @@ function ReadObjectFile(id) {
                 numSlots: 0,
                 slotTimeStretch: 1,
                 slotSize: 1,
-                slotPos: 0,
-                slotVert: 0,
-                slotParent: 0,
+                slots: [],
                 numSprites: 0,
                 sprites: [],
-                spritePos: [],
-                spriteRot: [],
-                spriteHFlip: [],
-                spriteColor: [],
-                spriteAgeStart: [],
-                spriteAgeEnd: [],
-                spriteParent: [],
-                spriteInvisibleWhenHolding: [],
-                spriteInvisibleWhenWorn: [],
-                spriteBehindSlots: [],
-                spriteIsHead: [],
-                spriteIsBody: [],
-                spriteIsBackFoot: [],
-                spriteIsFrontFoot: [],
                 numUses: 1,
-                spriteUseVanish: [],
-                spriteUseAppear: [],
-                useDummyIDs: null,
-                isUseDummy: false,
-                useDummyParent: 0,
                 cachedHeight: -1,
                 spriteSkipDrawing: [],
             };
@@ -95,6 +82,7 @@ function ReadObjectFile(id) {
             // inline function to step over lines
             let lineIdx = 0;
             const nextLine = () => {
+                if (lineIdx >= lines.length) return null;
                 return lines[lineIdx++];
             };
 
@@ -106,8 +94,12 @@ function ReadObjectFile(id) {
                 format = format.replace(/%l/g, "%"); // remove %l*, as the sscanf lib doesn't like it (just remove, it'll boil down to the correct number type for JS)
                 format = format.replace(/%[0-9]+s/g, "%s"); // remove %[0-9]+s, as lib doesn't seem to pick it up correctly
 
+                // get next line to parse
+                const line = nextLine();
+                if (line === null) return;
+
                 // call sscanf
-                const args = [nextLine(), ...arguments];
+                const args = [line, ...arguments];
                 const scanResponse = sscanf(...args);
 
                 // check if we get any responses to test for missing lines (old file formats)
@@ -144,7 +136,14 @@ function ReadObjectFile(id) {
                         }
                         else if (keys.length == 3)
                         {
+                            if (!r[keys[0]][keys[1]]) r[keys[0]][keys[1]] = {};
                             r[keys[0]][keys[1]][keys[2]] = value;
+                        }
+                        else if (keys.length == 4)
+                        {
+                            if (!r[keys[0]][keys[1]]) r[keys[0]][keys[1]] = {};
+                            if (!r[keys[0]][keys[1]][keys[2]]) r[keys[0]][keys[1]][keys[2]] = {};
+                            r[keys[0]][keys[1]][keys[2]][keys[3]] = value;
                         }
                     }
                 }
@@ -155,6 +154,13 @@ function ReadObjectFile(id) {
                     lineIdx--;
                 }
             }
+
+            // take the line key, remove the key (and = symbol), then split
+            const lineToBoolArray = (key, objKey, size) => {
+                nextLine().substring(key.length + 1).split(",").map(x => Number(x)).map(x => {
+                    if (x >= 0 && x < size) r.sprites[x][objKey] = true;
+                });
+            };
             
             // this is generally copy/pasted from objectBank.cpp::initObjectBankStep
             //  the game itself has one hell of a manual parser, so I've had to duplicate it here
@@ -197,12 +203,39 @@ function ReadObjectFile(id) {
             parseLine("deadlyDistance=%d", "deadlyDistance");
             parseLine("useDistance=%d", "useDistance");
             const sounds = nextLine().substring(7).split(",");
-            console.log(`${r.id} :: ${sounds}`);
-
-            parseLine("", "");
-            parseLine("", "");
-
-            
+            if (sounds.length == 4) {
+                [r.creationSound, r.usingSound, r.eatingSound, r.decaySound] = sounds.map(ParseSoundString);
+            }
+            parseLine("creationSoundInitialOnly=%d", "creationSoundInitialOnly");
+            parseLine("numSlots=%d#timeStretch=%f", "numSlots", "slotTimeStretch");
+            parseLine("slotSize=%d", "slotSize");
+            for(let slotIdx=0; slotIdx < r.numSlots; slotIdx++) {
+                parseLine("slotPos=%lf,%lf,vert=%d,parent=%d", `slots.${slotIdx}.pos.x`, `slots.${slotIdx}.pos.y`, `slots.${slotIdx}.vert`, `slots.${slotIdx}.parent`);
+            }
+            parseLine("numSprites=%d", "numSprites");
+            for(let spriteIdx=0; spriteIdx < r.numSprites; spriteIdx++) {
+                parseLine("spriteID=%d", `sprites.${spriteIdx}.id`);
+                parseLine("pos=%lf,%lf", `sprites.${spriteIdx}.pos.x`, `sprites.${spriteIdx}.pos.y`);
+                parseLine("rot=%lf", `sprites.${spriteIdx}.rot`);
+                parseLine("hFlip=%d", `sprites.${spriteIdx}.hFlip`);
+                parseLine("color=%f,%f,%f", `sprites.${spriteIdx}.color.r`, `sprites.${spriteIdx}.color.g`, `sprites.${spriteIdx}.color.b`);
+                parseLine("ageRange=%lf,%lf", `sprites.${spriteIdx}.ageStart`, `sprites.${spriteIdx}.ageEnd`);
+                parseLine("parent=%d", `sprites.${spriteIdx}.parent`);
+                parseLine(
+                    "invisHolding=%d,invisWorn=%d,behindSlots=%d",
+                    `sprites.${spriteIdx}.invisibleWhenHolding`,
+                    `sprites.${spriteIdx}.invisibleWhenWorn`,
+                    `sprites.${spriteIdx}.behindSlots`
+                );
+            }
+            lineToBoolArray("headIndex", "isHead", r.numSprites);
+            lineToBoolArray("bodyIndex", "isBody", r.numSprites);
+            lineToBoolArray("backFootIndex", "isBackFoot", r.numSprites);
+            lineToBoolArray("frontFootIndex", "isFrontFoot", r.numSprites);
+            parseLine("numUses=%d", "numUses");
+            lineToBoolArray("useVanishIndex", "useVanish", r.numSprites);
+            lineToBoolArray("useAppearIndex", "useAppear", r.numSprites);
+            parseLine("pixHeight=%d", "cachedHeight");
 
             return Promise.resolve(r);
         });
@@ -213,6 +246,11 @@ for(var i=1; i<670; i++) {
     ReadObjectFile(i);
 }
 
-ReadObjectFile(31);//.then(console.log);
+ReadObjectFile(354).then(r=> {
+    //console.log(JSON.stringify(r, null, 2));
+});
+
+//ParseSoundString("870:0.250000").then(console.log);
+//ParseSoundString("898:0.008333#899:0.008333#900:0.016667#901:0.008333").then(console.log);
 
 //console.log(sscanf("mapChance=1.000000#biomes_0,3", "mapChance=%f#biomes_%s", "mapChance", "_biomeString"));
