@@ -11,19 +11,42 @@ const dir = config.dir;
 
 Objects.all().then(allObjects => {
     const OName = (objID) => {
-        if (objID == -1) return "*drop*";
-        if (objID < 0) return `*ACTION::${objID}*`;
-        if (allObjects[objID] === null || allObjects[objID] === undefined) return "*nothing*";
-        return allObjects[objID].description;
+        if (allObjects[objID] === null || allObjects[objID] === undefined) return `nothing(${objID})`;
+        return `${allObjects[objID].description}(${objID})`;
     };
 
     Transitions.all().then(allTransitions => {
         for(let i=0, t; t=allTransitions[i++];)
         {
-            console.log(`${OName(t.actor)} (held) + ${OName(t.target)} (ground) = ${OName(t.newActor)} (held) + ${OName(t.newTarget)} (ground)`);
+            if (t.target != -1) continue;
+            if (t.actor < 0)
+            {
+                console.log(`${OName(t.target)} after ${t.autoDecaySeconds} seconds${GameTime(t.autoDecaySeconds)} = ${OName(t.newTarget)}`);
+            }
+            else
+            {
+                console.log(`${OName(t.actor)} + ${OName(t.target)} = ${OName(t.newActor)} + ${OName(t.newTarget)}`);
+            }
         }
 
         console.log(` # Found ${allTransitions.length} transitions`);
     });
 });
 
+function GameTime(seconds) {
+    if (seconds < 60) {
+        return "";
+    }
+    const years = seconds/60;
+    if (years < 60) return ` (${years} years)`;
+    const remainer = (years % 60).toFixed(0);
+    const lifetimes = Math.floor(years / 60);
+    if (remainer == 0)
+    {
+        return ` (${lifetimes} lifetimes)`;
+    }
+    else
+    {
+        return ` (${lifetimes} lifetimes, ${remainer} years)`;
+    }
+}

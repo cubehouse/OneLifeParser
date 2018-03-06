@@ -23,7 +23,7 @@ function ReadObjectFile(id) {
         return readFile(`${dir}objects/${id}.txt`).then(data => {
             const fileData = data.toString();
 
-            const lines = fileData.split("\r\n");
+            const lines = fileData.replace(/\r\n/g, "\n").split("\n");
 
             // we will populate this with parsed data
             //  define the defaults here
