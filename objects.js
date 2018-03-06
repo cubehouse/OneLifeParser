@@ -1,8 +1,8 @@
 const fs = require("fs");
 const util = require('util');
 const sscanf = require("sscanf");
-
-const dir = `${__dirname}/../OneLifeData/`;
+const config = require("./config");
+const dir = config.dir;
 
 const readFile = util.promisify(fs.readFile);
 const fileExists = util.promisify(fs.exists);
@@ -17,7 +17,9 @@ function ParseSoundString(sound) {
 
 function ReadObjectFile(id) {
     return fileExists(`${dir}objects/${id}.txt`).then(exists => {
+
         if (!exists) return Promise.resolve(null);
+
         return readFile(`${dir}objects/${id}.txt`).then(data => {
             const fileData = data.toString();
 
@@ -242,6 +244,43 @@ function ReadObjectFile(id) {
     });
 }
 
+function GetNextIndex() {
+    return readFile(`${dir}objects/nextObjectNumber.txt`).then(text => {
+        return Promise.resolve(Number(text));
+    });
+}
+
+function ReadAll() {
+    return GetNextIndex().then(nextIndex => {
+        return new Promise((resolve) => {
+            const objects = {};
+
+            let objIdx = 0;
+
+            const step = () => {
+                if (objIdx >= nextIndex)
+                {
+                    return resolve(objects);
+                }
+
+                ReadObjectFile(objIdx).then(obj => {
+                    if (obj !== null)
+                    {
+                        objects[obj.id] = obj;
+                    }
+
+                    objIdx++;
+                    process.nextTick(step);
+                });
+            };
+            
+            process.nextTick(step);
+        });
+    });
+}
+
 module.exports = {
-    read: ReadObjectFile
+    read: ReadObjectFile,
+    nextObjectNumer: GetNextIndex,
+    all: ReadAll
 };
