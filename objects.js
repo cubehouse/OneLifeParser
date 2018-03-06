@@ -242,15 +242,6 @@ function ReadObjectFile(id) {
     });
 }
 
-for(var i=1; i<670; i++) {
-    ReadObjectFile(i);
-}
-
-ReadObjectFile(354).then(r=> {
-    //console.log(JSON.stringify(r, null, 2));
-});
-
-//ParseSoundString("870:0.250000").then(console.log);
-//ParseSoundString("898:0.008333#899:0.008333#900:0.016667#901:0.008333").then(console.log);
-
-//console.log(sscanf("mapChance=1.000000#biomes_0,3", "mapChance=%f#biomes_%s", "mapChance", "_biomeString"));
+module.exports = {
+    read: ReadObjectFile
+};
