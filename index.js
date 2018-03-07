@@ -18,7 +18,7 @@ Objects.all().then(allObjects => {
     Transitions.all().then(allTransitions => {
         for(let i=0, t; t=allTransitions[i++];)
         {
-            if (t.target != -1) continue;
+            //if (t.target != -1) continue;
             if (t.actor < 0)
             {
                 console.log(`${OName(t.target)} after ${t.autoDecaySeconds} seconds${GameTime(t.autoDecaySeconds)} = ${OName(t.newTarget)}`);
